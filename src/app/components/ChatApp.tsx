@@ -12,7 +12,9 @@ import {
   onSnapshot,
   query,
   where,
+  Timestamp,
 } from "firebase/firestore";
+import Image from "next/image";
 
 const ChatApp = ({ user }: { user: User }) => {
   const [input, setInput] = useState("");
@@ -29,7 +31,7 @@ const ChatApp = ({ user }: { user: User }) => {
       userEmail: string;
       userName: string;
       userPicture: string;
-      date: any;
+      date: Timestamp;
     }>
   >([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -50,7 +52,7 @@ const ChatApp = ({ user }: { user: User }) => {
       name: string;
       photoURL: string;
       isOnline: boolean;
-      lastSeen: any;
+      lastSeen: Timestamp;
     }>
   >([]);
   const [showOnlineUsers, setShowOnlineUsers] = useState(false);
@@ -177,11 +179,18 @@ const ChatApp = ({ user }: { user: User }) => {
   useEffect(() => {
     const unsubscribe = onSnapshot(
       query(collection(db, "messages"), where("pinned", "==", true)),
-      (snapshot: any) => {
-        const pinned = snapshot.docs.map((doc: any) => ({
+      (snapshot) => {
+        const pinned = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
-        }));
+        })) as Array<{
+          id: string;
+          message: string;
+          userEmail: string;
+          userName: string;
+          userPicture: string;
+          date: Timestamp;
+        }>;
         setPinnedMessages(pinned);
       }
     );
@@ -191,11 +200,18 @@ const ChatApp = ({ user }: { user: User }) => {
 
   // Fetch online users
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "users"), (snapshot: any) => {
-      const users = snapshot.docs.map((doc: any) => ({
+    const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
+      const users = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
-      }));
+      })) as Array<{
+        id: string;
+        email: string;
+        name: string;
+        photoURL: string;
+        isOnline: boolean;
+        lastSeen: Timestamp;
+      }>;
       setOnlineUsers(users);
     });
 
@@ -416,7 +432,30 @@ const ChatApp = ({ user }: { user: User }) => {
           }
         : undefined;
 
-      const messageData: any = {
+      const messageData: {
+        message: string;
+        userEmail: string | null;
+        userPicture: string | null;
+        userName: string | null;
+        date: ReturnType<typeof serverTimestamp>;
+        status: string;
+        readBy: (string | null)[];
+        hasFiles: boolean;
+        hasAudio: boolean;
+        files?: Array<{
+          name: string;
+          type: string;
+          size: number;
+          url: string;
+        }>;
+        audio?: {
+          name: string;
+          type: string;
+          size: number;
+          url: string;
+          duration: number;
+        };
+      } = {
         message: input.trim(),
         userEmail: user.email,
         userPicture: user.photoURL,
@@ -470,32 +509,32 @@ const ChatApp = ({ user }: { user: User }) => {
     >
       {/* Header */}
       <div
-        className={`relative border-b px-6 py-4 transition-colors duration-300 ${
+        className={`relative border-b px-3 sm:px-6 py-3 sm:py-4 transition-colors duration-300 ${
           isDarkMode ? "border-gray-700" : "border-gray-200"
         }`}
       >
-        <div className="max-w-4xl mx-auto flex justify-between items-center">
-          <div>
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0">
+          <div className="flex-1 min-w-0">
             <h1
-              className={`text-xl font-medium transition-colors duration-300 ${
+              className={`text-lg sm:text-xl font-medium transition-colors duration-300 truncate ${
                 isDarkMode ? "text-white" : "text-gray-900"
               }`}
             >
               Messages
             </h1>
             <p
-              className={`text-sm transition-colors duration-300 ${
+              className={`text-xs sm:text-sm transition-colors duration-300 truncate ${
                 isDarkMode ? "text-gray-400" : "text-gray-500"
               }`}
             >
               Hello, {user.displayName || user.email}
             </p>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-1 sm:space-x-3 flex-shrink-0">
             {/* Online Users Indicator */}
             <button
               onClick={() => setShowOnlineUsers(!showOnlineUsers)}
-              className="flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md px-2 py-1 transition-colors duration-200"
+              className="flex items-center space-x-1 sm:space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md px-1 sm:px-2 py-1 transition-colors duration-200"
             >
               <div className="flex -space-x-1">
                 {onlineUsers
@@ -504,13 +543,15 @@ const ChatApp = ({ user }: { user: User }) => {
                   .map((user) => (
                     <div
                       key={user.email}
-                      className="w-6 h-6 rounded-full border-2 border-white dark:border-gray-800 bg-green-500 flex items-center justify-center text-xs text-white font-medium"
+                      className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-white dark:border-gray-800 bg-green-500 flex items-center justify-center text-xs text-white font-medium"
                       title={user.name || user.email}
                     >
                       {user.photoURL ? (
-                        <img
+                        <Image
                           src={user.photoURL}
                           alt={user.name || user.email}
+                          width={24}
+                          height={24}
                           className="w-full h-full rounded-full object-cover"
                         />
                       ) : (
@@ -521,7 +562,7 @@ const ChatApp = ({ user }: { user: User }) => {
                 {onlineUsers.filter(
                   (u) => u.isOnline && u.email !== user?.email
                 ).length > 3 && (
-                  <div className="w-6 h-6 rounded-full border-2 border-white dark:border-gray-800 bg-gray-400 flex items-center justify-center text-xs text-white font-medium">
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-white dark:border-gray-800 bg-gray-400 flex items-center justify-center text-xs text-white font-medium">
                     +
                     {onlineUsers.filter(
                       (u) => u.isOnline && u.email !== user?.email
@@ -530,7 +571,7 @@ const ChatApp = ({ user }: { user: User }) => {
                 )}
               </div>
               <span
-                className={`text-xs transition-colors duration-300 ${
+                className={`text-xs transition-colors duration-300 hidden sm:inline ${
                   isDarkMode ? "text-gray-400" : "text-gray-600"
                 }`}
               >
@@ -545,7 +586,7 @@ const ChatApp = ({ user }: { user: User }) => {
 
             <button
               onClick={() => setShowNotificationSettings(true)}
-              className={`p-2 rounded-md transition-colors duration-200 ${
+              className={`p-1.5 sm:p-2 rounded-md transition-colors duration-200 ${
                 isDarkMode
                   ? "text-gray-400 hover:text-gray-300 hover:bg-gray-700"
                   : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
@@ -553,7 +594,7 @@ const ChatApp = ({ user }: { user: User }) => {
               title="Notification settings"
             >
               <svg
-                className="w-5 h-5"
+                className="w-4 h-4 sm:w-5 sm:h-5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -569,7 +610,7 @@ const ChatApp = ({ user }: { user: User }) => {
 
             <button
               onClick={toggleDarkMode}
-              className={`p-2 rounded-md transition-colors duration-200 ${
+              className={`p-1.5 sm:p-2 rounded-md transition-colors duration-200 ${
                 isDarkMode
                   ? "text-yellow-400 hover:bg-gray-800"
                   : "text-gray-500 hover:bg-gray-100"
@@ -580,7 +621,7 @@ const ChatApp = ({ user }: { user: User }) => {
             >
               {isDarkMode ? (
                 <svg
-                  className="w-5 h-5"
+                  className="w-4 h-4 sm:w-5 sm:h-5"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -594,7 +635,7 @@ const ChatApp = ({ user }: { user: User }) => {
                 </svg>
               ) : (
                 <svg
-                  className="w-5 h-5"
+                  className="w-4 h-4 sm:w-5 sm:h-5"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -610,22 +651,23 @@ const ChatApp = ({ user }: { user: User }) => {
             </button>
             <button
               onClick={handleLogout}
-              className={`px-3 py-2 rounded-md transition-colors duration-200 ${
+              className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-md transition-colors duration-200 text-xs sm:text-sm ${
                 isDarkMode
                   ? "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
                   : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
               }`}
             >
-              Sign out
+              <span className="hidden sm:inline">Sign out</span>
+              <span className="sm:hidden">Sign out</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 max-w-4xl mx-auto w-full p-6">
+      <div className="flex-1 max-w-7xl mx-auto w-full p-3 sm:p-6">
         <div
-          className={`border rounded-lg h-[calc(100vh-200px)] flex flex-col shadow-sm transition-colors duration-300 ${
+          className={`border rounded-lg h-[calc(100vh-160px)] sm:h-[calc(100vh-200px)] flex flex-col shadow-sm transition-colors duration-300 ${
             isDarkMode
               ? "border-gray-700 bg-gray-800"
               : "border-gray-200 bg-white"
@@ -641,10 +683,10 @@ const ChatApp = ({ user }: { user: User }) => {
                   : "border-gray-200 bg-gray-50"
               }`}
             >
-              <div className="p-3">
+              <div className="p-2 sm:p-3">
                 <div className="flex items-center justify-between mb-2">
                   <h3
-                    className={`text-sm font-medium transition-colors duration-300 ${
+                    className={`text-xs sm:text-sm font-medium transition-colors duration-300 ${
                       isDarkMode ? "text-gray-300" : "text-gray-700"
                     }`}
                   >
@@ -662,29 +704,31 @@ const ChatApp = ({ user }: { user: User }) => {
                     }
                   </span>
                 </div>
-                <div className="space-y-2 max-h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+                <div className="space-y-1 sm:space-y-2 max-h-24 sm:max-h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
                   {pinnedMessages
                     .filter((msg) => msg.userEmail !== user?.email)
                     .slice(0, 3)
                     .map((msg) => (
                       <div
                         key={msg.id}
-                        className={`p-2 rounded text-xs transition-colors duration-300 border ${
+                        className={`p-1.5 sm:p-2 rounded text-xs transition-colors duration-300 border ${
                           isDarkMode
                             ? "bg-gray-700 border-gray-600"
                             : "bg-white border-gray-200"
                         }`}
                       >
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-1 sm:space-x-2">
                           {msg.userPicture ? (
-                            <img
+                            <Image
                               src={msg.userPicture}
                               alt={msg.userName}
-                              className="w-4 h-4 rounded-full object-cover flex-shrink-0"
+                              width={16}
+                              height={16}
+                              className="w-3 h-3 sm:w-4 sm:h-4 rounded-full object-cover flex-shrink-0"
                             />
                           ) : (
                             <div
-                              className={`w-4 h-4 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 ${
+                              className={`w-3 h-3 sm:w-4 sm:h-4 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 ${
                                 isDarkMode
                                   ? "bg-blue-500 text-white"
                                   : "bg-blue-400 text-white"
@@ -694,7 +738,7 @@ const ChatApp = ({ user }: { user: User }) => {
                             </div>
                           )}
                           <span
-                            className={`font-medium transition-colors duration-300 truncate ${
+                            className={`font-medium transition-colors duration-300 truncate text-xs ${
                               isDarkMode ? "text-gray-300" : "text-gray-700"
                             }`}
                           >
@@ -702,7 +746,7 @@ const ChatApp = ({ user }: { user: User }) => {
                           </span>
                         </div>
                         <p
-                          className={`mt-1 truncate transition-colors duration-300 ${
+                          className={`mt-1 truncate transition-colors duration-300 text-xs ${
                             isDarkMode ? "text-gray-400" : "text-gray-600"
                           }`}
                         >
@@ -740,23 +784,23 @@ const ChatApp = ({ user }: { user: User }) => {
 
           {/* Input Area */}
           <div
-            className={`p-4 border-t transition-colors duration-300 ${
+            className={`p-2 sm:p-4 border-t transition-colors duration-300 ${
               isDarkMode ? "border-gray-700" : "border-gray-200"
             }`}
           >
             {/* Voice Recording Preview */}
             {audioUrl && (
-              <div className="mb-3">
+              <div className="mb-2 sm:mb-3">
                 <div
-                  className={`flex items-center space-x-3 p-3 rounded-lg border transition-colors duration-300 ${
+                  className={`flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-3 p-2 sm:p-3 rounded-lg border transition-colors duration-300 ${
                     isDarkMode
                       ? "bg-gray-700 border-gray-600"
                       : "bg-gray-50 border-gray-200"
                   }`}
                 >
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 flex-shrink-0">
                     <svg
-                      className="w-5 h-5 text-red-500"
+                      className="w-4 h-4 sm:w-5 sm:h-5 text-red-500"
                       fill="currentColor"
                       viewBox="0 0 20 20"
                     >
@@ -767,14 +811,14 @@ const ChatApp = ({ user }: { user: User }) => {
                       />
                     </svg>
                     <span
-                      className={`text-sm font-medium transition-colors duration-300 ${
+                      className={`text-xs sm:text-sm font-medium transition-colors duration-300 ${
                         isDarkMode ? "text-gray-300" : "text-gray-700"
                       }`}
                     >
                       Voice Message ({formatTime(recordingTime)})
                     </span>
                   </div>
-                  <audio controls className="flex-1">
+                  <audio controls className="flex-1 w-full">
                     <source src={audioUrl} type="audio/webm" />
                   </audio>
                   <button
@@ -783,7 +827,7 @@ const ChatApp = ({ user }: { user: User }) => {
                       setAudioUrl(null);
                       setRecordingTime(0);
                     }}
-                    className={`p-1 rounded transition-colors duration-200 ${
+                    className={`p-1 rounded transition-colors duration-200 flex-shrink-0 ${
                       isDarkMode
                         ? "text-gray-400 hover:text-gray-300 hover:bg-gray-600"
                         : "text-gray-500 hover:text-gray-700 hover:bg-gray-200"
@@ -809,8 +853,8 @@ const ChatApp = ({ user }: { user: User }) => {
 
             {/* File Preview */}
             {selectedFiles.length > 0 && (
-              <div className="mb-3">
-                <div className="flex flex-wrap gap-2">
+              <div className="mb-2 sm:mb-3">
+                <div className="flex flex-wrap gap-1 sm:gap-2">
                   {selectedFiles.map((file, index) => (
                     <div
                       key={index}
@@ -822,16 +866,18 @@ const ChatApp = ({ user }: { user: User }) => {
                     >
                       {file.type.startsWith("image/") &&
                         imagePreview[index] && (
-                          <img
+                          <Image
                             src={imagePreview[index]}
                             alt={file.name}
-                            className="w-16 h-16 object-cover rounded-lg"
+                            width={64}
+                            height={64}
+                            className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-lg"
                           />
                         )}
                       {!file.type.startsWith("image/") && (
-                        <div className="w-16 h-16 flex items-center justify-center">
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center">
                           <svg
-                            className="w-8 h-8 text-gray-400"
+                            className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -866,12 +912,12 @@ const ChatApp = ({ user }: { user: User }) => {
               </div>
             )}
 
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 sm:space-x-3">
               {/* Voice Recording Button */}
               {!isRecording ? (
                 <button
                   onClick={startRecording}
-                  className={`p-2 rounded-md transition-colors duration-200 ${
+                  className={`p-1.5 sm:p-2 rounded-md transition-colors duration-200 ${
                     isDarkMode
                       ? "text-gray-400 hover:text-red-400 hover:bg-gray-700"
                       : "text-gray-500 hover:text-red-600 hover:bg-gray-100"
@@ -879,7 +925,7 @@ const ChatApp = ({ user }: { user: User }) => {
                   title="Record voice message"
                 >
                   <svg
-                    className="w-5 h-5"
+                    className="w-4 h-4 sm:w-5 sm:h-5"
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
@@ -891,17 +937,17 @@ const ChatApp = ({ user }: { user: User }) => {
                   </svg>
                 </button>
               ) : (
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1 sm:space-x-2">
                   <button
                     onClick={stopRecording}
-                    className={`p-2 rounded-md transition-colors duration-200 ${
+                    className={`p-1.5 sm:p-2 rounded-md transition-colors duration-200 ${
                       isDarkMode
                         ? "text-red-400 hover:text-red-300 hover:bg-gray-700"
                         : "text-red-600 hover:text-red-700 hover:bg-gray-100"
                     }`}
                     title="Stop recording"
                   >
-                    <div className="w-5 h-5 bg-red-500 rounded-full"></div>
+                    <div className="w-4 h-4 sm:w-5 sm:h-5 bg-red-500 rounded-full"></div>
                   </button>
                   <span
                     className={`text-xs transition-colors duration-300 ${
@@ -920,7 +966,7 @@ const ChatApp = ({ user }: { user: User }) => {
                     title="Cancel recording"
                   >
                     <svg
-                      className="w-4 h-4"
+                      className="w-3 h-3 sm:w-4 sm:h-4"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -939,7 +985,7 @@ const ChatApp = ({ user }: { user: User }) => {
               {/* File Upload Button */}
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className={`p-2 rounded-md transition-colors duration-200 ${
+                className={`p-1.5 sm:p-2 rounded-md transition-colors duration-200 ${
                   isDarkMode
                     ? "text-gray-400 hover:text-gray-300 hover:bg-gray-700"
                     : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
@@ -947,7 +993,7 @@ const ChatApp = ({ user }: { user: User }) => {
                 title="Attach files"
               >
                 <svg
-                  className="w-5 h-5"
+                  className="w-4 h-4 sm:w-5 sm:h-5"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -970,7 +1016,7 @@ const ChatApp = ({ user }: { user: User }) => {
                 accept="image/*,.pdf,.doc,.docx,.txt"
               />
 
-              <div className="flex-1 relative">
+              <div className="flex-1 relative min-w-0">
                 <input
                   ref={inputRef}
                   value={input}
@@ -982,7 +1028,7 @@ const ChatApp = ({ user }: { user: User }) => {
                   onBlur={handleTypingStop}
                   type="text"
                   placeholder="Type a message..."
-                  className={`w-full border rounded-md px-4 py-2 placeholder-gray-500 focus:outline-none focus:ring-1 transition-colors duration-200 ${
+                  className={`w-full border rounded-md px-3 sm:px-4 py-2 placeholder-gray-500 focus:outline-none focus:ring-1 transition-colors duration-200 text-sm sm:text-base ${
                     isDarkMode
                       ? "border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-gray-500 focus:border-gray-500"
                       : "border-gray-300 bg-white text-gray-900 focus:ring-gray-400 focus:border-gray-400"
@@ -995,7 +1041,7 @@ const ChatApp = ({ user }: { user: User }) => {
                   (!input.trim() && selectedFiles.length === 0 && !audioBlob)
                 }
                 onClick={handleSendMessage}
-                className={`px-4 py-2 rounded-md transition-colors duration-200 ${
+                className={`px-3 sm:px-4 py-2 rounded-md transition-colors duration-200 flex-shrink-0 ${
                   isDarkMode
                     ? "bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white hover:bg-blue-700"
                     : "bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed text-white hover:bg-gray-800"
@@ -1045,7 +1091,7 @@ const ChatApp = ({ user }: { user: User }) => {
       {/* Online Users Dropdown */}
       {showOnlineUsers && (
         <div
-          className={`absolute top-16 right-4 rounded-lg shadow-lg border p-4 z-40 max-w-xs transition-colors duration-300 ${
+          className={`fixed sm:absolute top-16 sm:top-16 left-2 right-2 sm:left-auto sm:right-4 rounded-lg shadow-lg border p-3 sm:p-4 z-40 sm:w-80 max-w-none sm:max-w-[calc(100vw-1rem)] transition-colors duration-300 ${
             isDarkMode
               ? "bg-gray-800 border-gray-700"
               : "bg-white border-gray-200"
@@ -1066,10 +1112,10 @@ const ChatApp = ({ user }: { user: User }) => {
             </h3>
             <button
               onClick={() => setShowOnlineUsers(false)}
-              className={`transition-colors duration-300 ${
+              className={`p-1 rounded transition-colors duration-300 ${
                 isDarkMode
-                  ? "text-gray-400 hover:text-gray-300"
-                  : "text-gray-400 hover:text-gray-600"
+                  ? "text-gray-400 hover:text-gray-300 hover:bg-gray-700"
+                  : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
               }`}
             >
               <svg
@@ -1088,7 +1134,7 @@ const ChatApp = ({ user }: { user: User }) => {
             </button>
           </div>
           <div
-            className={`space-y-2 max-h-64 overflow-y-auto scrollbar-thin ${
+            className={`space-y-2 max-h-80 sm:max-h-64 overflow-y-auto scrollbar-thin ${
               isDarkMode
                 ? "scrollbar-thumb-gray-600 scrollbar-track-transparent"
                 : "scrollbar-thumb-gray-300 scrollbar-track-transparent"
@@ -1099,15 +1145,17 @@ const ChatApp = ({ user }: { user: User }) => {
               .map((onlineUser) => (
                 <div
                   key={onlineUser.email}
-                  className={`flex items-center space-x-3 p-2 rounded transition-colors duration-200 ${
+                  className={`flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 rounded transition-colors duration-200 ${
                     isDarkMode ? "hover:bg-gray-700" : "hover:bg-gray-100"
                   }`}
                 >
                   <div className="relative">
                     {onlineUser.photoURL ? (
-                      <img
+                      <Image
                         src={onlineUser.photoURL}
                         alt={onlineUser.name || onlineUser.email}
+                        width={32}
+                        height={32}
                         className="w-8 h-8 rounded-full object-cover"
                       />
                     ) : (
@@ -1164,13 +1212,15 @@ const ChatApp = ({ user }: { user: User }) => {
                   .map((offlineUser) => (
                     <div
                       key={offlineUser.email}
-                      className="flex items-center space-x-3 p-2 rounded opacity-60"
+                      className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 rounded opacity-60"
                     >
                       <div className="relative">
                         {offlineUser.photoURL ? (
-                          <img
+                          <Image
                             src={offlineUser.photoURL}
                             alt={offlineUser.name || offlineUser.email}
+                            width={32}
+                            height={32}
                             className="w-8 h-8 rounded-full object-cover grayscale"
                           />
                         ) : (
@@ -1216,15 +1266,15 @@ const ChatApp = ({ user }: { user: User }) => {
 
       {/* Notification Settings Modal */}
       {showNotificationSettings && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div
-            className={`w-96 rounded-lg p-6 transition-colors duration-300 ${
+            className={`w-full max-w-md sm:w-96 rounded-lg p-4 sm:p-6 transition-colors duration-300 ${
               isDarkMode ? "bg-gray-800" : "bg-white"
             }`}
           >
             <div className="flex items-center justify-between mb-4">
               <h3
-                className={`text-lg font-medium transition-colors duration-300 ${
+                className={`text-base sm:text-lg font-medium transition-colors duration-300 ${
                   isDarkMode ? "text-white" : "text-gray-900"
                 }`}
               >

@@ -65,7 +65,7 @@ const ChatContainer = ({
     userEmail: string;
     userName: string;
     userPicture: string;
-    date: any;
+    date: Timestamp;
   }>;
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -93,7 +93,8 @@ const ChatContainer = ({
           // Play notification sound
           if ("AudioContext" in window || "webkitAudioContext" in window) {
             const audioContext = new (window.AudioContext ||
-              (window as any).webkitAudioContext)();
+              (window as { webkitAudioContext?: typeof AudioContext })
+                .webkitAudioContext)();
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
 
@@ -150,6 +151,7 @@ const ChatContainer = ({
           id: doc.id,
           ...doc.data(),
         }))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .filter((typingUser: any) => {
           // Filter out typing users older than 3 seconds
           const typingTime = typingUser.timestamp?.toDate();
@@ -157,6 +159,7 @@ const ChatContainer = ({
           const timeDiff = now.getTime() - typingTime.getTime();
           return timeDiff < 3000;
         })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map((typingUser: any) => ({
           userEmail: typingUser.userEmail,
           userName: typingUser.userName,
@@ -199,7 +202,7 @@ const ChatContainer = ({
   }, [messages, user.email]);
 
   return (
-    <div className="h-full overflow-y-auto p-4 space-y-3">
+    <div className="h-full overflow-y-auto p-2 sm:p-4 space-y-2 sm:space-y-3">
       {messages.length === 0 ? (
         <div className="flex items-center justify-center h-full">
           <div
@@ -208,12 +211,12 @@ const ChatContainer = ({
             }`}
           >
             <div
-              className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 transition-colors duration-300 ${
+              className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-3 transition-colors duration-300 ${
                 isDarkMode ? "bg-gray-700" : "bg-gray-100"
               }`}
             >
               <svg
-                className="w-6 h-6"
+                className="w-5 h-5 sm:w-6 sm:h-6"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -256,12 +259,12 @@ const ChatContainer = ({
 
       {/* Typing Indicator */}
       {typingUsers.length > 0 && (
-        <div className="flex items-center space-x-2 p-4">
-          <div className="flex -space-x-2">
-            {typingUsers.slice(0, 3).map((typingUser, index) => (
+        <div className="flex items-center space-x-2 p-2 sm:p-4">
+          <div className="flex -space-x-1 sm:-space-x-2">
+            {typingUsers.slice(0, 3).map((typingUser) => (
               <div
                 key={typingUser.userEmail}
-                className="w-6 h-6 rounded-full bg-gray-300 border-2 border-white flex items-center justify-center text-xs font-medium"
+                className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gray-300 border-2 border-white flex items-center justify-center text-xs font-medium"
                 title={typingUser.userName}
               >
                 {typingUser.userName.charAt(0).toUpperCase()}
@@ -270,7 +273,7 @@ const ChatContainer = ({
           </div>
           <div className="flex items-center space-x-1">
             <span
-              className={`text-sm transition-colors duration-300 ${
+              className={`text-xs sm:text-sm transition-colors duration-300 ${
                 isDarkMode ? "text-gray-400" : "text-gray-600"
               }`}
             >

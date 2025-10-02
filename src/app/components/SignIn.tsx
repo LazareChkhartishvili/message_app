@@ -19,19 +19,19 @@ const SignIn = () => {
 
   return (
     <div
-      className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${"bg-gradient-to-br from-blue-50 to-indigo-100"}`}
+      className={`min-h-screen flex items-center justify-center transition-colors duration-300 p-4 ${"bg-gradient-to-br from-blue-50 to-indigo-100"}`}
     >
-      <div className="w-full max-w-md mx-4">
+      <div className="w-full max-w-sm sm:max-w-md mx-auto">
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-6"></div>
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="flex justify-center mb-4 sm:mb-6"></div>
           <h1
-            className={`text-3xl font-bold mb-2 transition-colors duration-300 ${"text-gray-900"}`}
+            className={`text-2xl sm:text-3xl font-bold mb-2 transition-colors duration-300 ${"text-gray-900"}`}
           >
             Welcome to Chat
           </h1>
           <p
-            className={`text-sm transition-colors duration-300 ${"text-gray-600"}`}
+            className={`text-sm sm:text-base transition-colors duration-300 ${"text-gray-600"}`}
           >
             Connect and chat with people around the world
           </p>
@@ -45,11 +45,11 @@ const SignIn = () => {
             <button
               onClick={handleSignIn}
               disabled={isLoading}
-              className={`mx-auto  cursor-pointer flex items-center justify-center px-4 py-3 rounded-xl font-medium transition-all duration-200 transform hover:scale-105 disabled:hover:scale-100 disabled:opacity-70 ${"bg-white text-gray-900 hover:bg-gray-100 shadow-lg"}`}
+              className={`w-full sm:w-auto mx-auto cursor-pointer flex items-center justify-center px-4 py-3 rounded-xl font-medium transition-all duration-200 transform hover:scale-105 disabled:hover:scale-100 disabled:opacity-70 text-sm sm:text-base ${"bg-white text-gray-900 hover:bg-gray-100 shadow-lg"}`}
             >
               {isLoading ? (
                 <svg
-                  className="w-5 h-5 animate-spin mr-3"
+                  className="w-4 h-4 sm:w-5 sm:h-5 animate-spin mr-2 sm:mr-3"
                   fill="none"
                   viewBox="0 0 24 24"
                 >
@@ -69,7 +69,7 @@ const SignIn = () => {
                 </svg>
               ) : (
                 <svg
-                  className="w-5 h-5 mr-3"
+                  className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3"
                   viewBox="0 0 24 24"
                   xmlns="http://www.w3.org/2000/svg"
                 >
@@ -91,7 +91,9 @@ const SignIn = () => {
                   />
                 </svg>
               )}
-              {isLoading ? "Signing in..." : "Continue with Google"}
+              <span className="truncate">
+                {isLoading ? "Signing in..." : "Continue with Google"}
+              </span>
             </button>
           </div>
         </div>

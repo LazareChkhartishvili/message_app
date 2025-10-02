@@ -7,6 +7,7 @@ import {
   deleteDoc,
   arrayUnion,
   arrayRemove,
+  Timestamp,
 } from "firebase/firestore";
 import { db } from "../../../firebase";
 import { User } from "firebase/auth";
@@ -26,7 +27,7 @@ const Messages = ({
     userEmail: string;
     userName: string;
     userPicture: string;
-    date: any;
+    date: Timestamp;
   }>;
 }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -59,7 +60,7 @@ const Messages = ({
     };
   }, []);
 
-  const formatTime = (timestamp: any) => {
+  const formatTime = (timestamp: Timestamp | undefined) => {
     if (!timestamp) return "";
     const date = timestamp.toDate();
     const now = new Date();
@@ -80,7 +81,7 @@ const Messages = ({
     }
   };
 
-  const getDetailedTime = (timestamp: any) => {
+  const getDetailedTime = (timestamp: Timestamp | undefined) => {
     if (!timestamp) return "";
     const date = timestamp.toDate();
     return date.toLocaleString([], {
@@ -281,7 +282,7 @@ const Messages = ({
 
     // Code blocks ```code```
     formatted = formatted.replace(
-      /```(.*?)```/gs,
+      /```([\s\S]*?)```/g,
       '<pre class="bg-gray-800 text-green-400 p-2 rounded text-sm overflow-x-auto my-2"><code>$1</code></pre>'
     );
 
@@ -330,7 +331,7 @@ const Messages = ({
           Read by {readers.length} {readers.length === 1 ? "person" : "people"}
         </span>
         <div className="flex -space-x-1">
-          {readers.slice(0, 3).map((email, index) => (
+          {readers.slice(0, 3).map((email) => (
             <div
               key={email}
               className={`w-4 h-4 rounded-full border border-white flex items-center justify-center text-xs text-white font-medium ${
@@ -361,19 +362,19 @@ const Messages = ({
   const userReactions = getUserReactions();
 
   return (
-    <div className="flex items-start space-x-3 group">
+    <div className="flex items-start space-x-2 sm:space-x-3 group">
       <div className="flex-shrink-0">
         <Image
           src={message.userPicture || "/default-avatar.svg"}
           width={32}
           height={32}
           alt={message.userName}
-          className="rounded-full"
+          className="rounded-full w-8 h-8 sm:w-10 sm:h-10"
         />
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center space-x-2 mb-1">
+        <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-2 mb-1">
           <span
             className={`font-medium text-sm transition-colors duration-300 ${
               isDarkMode ? "text-white" : "text-gray-900"
@@ -403,10 +404,10 @@ const Messages = ({
           </div>
           {/* Edit/Delete buttons - only show on hover and for message author */}
           {isAuthor && (
-            <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-wrap">
               <button
                 onClick={() => setIsEditing(true)}
-                className={`p-1 rounded transition-colors duration-200 ${
+                className={`p-0.5 sm:p-1 rounded transition-colors duration-200 ${
                   isDarkMode
                     ? "text-gray-500 hover:text-gray-300 hover:bg-gray-700"
                     : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
@@ -414,7 +415,7 @@ const Messages = ({
                 title="Edit message"
               >
                 <svg
-                  className="w-3 h-3"
+                  className="w-3 h-3 sm:w-4 sm:h-4"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -594,10 +595,10 @@ const Messages = ({
                     : "border-gray-200 bg-gray-50"
                 }`}
               >
-                <div className="p-3 flex items-center space-x-3">
-                  <div className="flex-shrink-0">
+                <div className="p-2 sm:p-3 flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+                  <div className="flex items-center space-x-2 flex-shrink-0">
                     <svg
-                      className="w-8 h-8 text-red-500"
+                      className="w-6 h-6 sm:w-8 sm:h-8 text-red-500"
                       fill="currentColor"
                       viewBox="0 0 20 20"
                     >
@@ -607,27 +608,27 @@ const Messages = ({
                         clipRule="evenodd"
                       />
                     </svg>
+                    <div className="min-w-0">
+                      <p
+                        className={`text-sm font-medium transition-colors duration-300 ${
+                          isDarkMode ? "text-white" : "text-gray-900"
+                        }`}
+                      >
+                        Voice Message
+                      </p>
+                      <p
+                        className={`text-xs transition-colors duration-300 ${
+                          isDarkMode ? "text-gray-400" : "text-gray-500"
+                        }`}
+                      >
+                        {Math.floor(message.audio.duration / 60)}:
+                        {(message.audio.duration % 60)
+                          .toString()
+                          .padStart(2, "0")}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p
-                      className={`text-sm font-medium transition-colors duration-300 ${
-                        isDarkMode ? "text-white" : "text-gray-900"
-                      }`}
-                    >
-                      Voice Message
-                    </p>
-                    <p
-                      className={`text-xs transition-colors duration-300 ${
-                        isDarkMode ? "text-gray-400" : "text-gray-500"
-                      }`}
-                    >
-                      {Math.floor(message.audio.duration / 60)}:
-                      {(message.audio.duration % 60)
-                        .toString()
-                        .padStart(2, "0")}
-                    </p>
-                  </div>
-                  <audio controls className="flex-1">
+                  <audio controls className="flex-1 w-full">
                     <source
                       src={message.audio.url}
                       type={message.audio.type || "audio/webm"}
@@ -652,10 +653,12 @@ const Messages = ({
                   >
                     {file.type.startsWith("image/") ? (
                       <div className="relative">
-                        <img
+                        <Image
                           src={file.url}
                           alt={file.name}
-                          className="max-w-xs max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity duration-200 rounded-lg"
+                          width={320}
+                          height={256}
+                          className="max-w-full sm:max-w-xs max-h-48 sm:max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity duration-200 rounded-lg"
                           onClick={() => {
                             // For base64 URLs, create a new window with the image
                             if (file.url.startsWith("data:")) {
@@ -686,11 +689,11 @@ const Messages = ({
                         </div>
                       </div>
                     ) : (
-                      <div className="p-3 flex items-center space-x-3">
+                      <div className="p-2 sm:p-3 flex items-center space-x-2 sm:space-x-3">
                         <div className="flex-shrink-0">
                           {file.type === "application/pdf" ? (
                             <svg
-                              className="w-8 h-8 text-red-500"
+                              className="w-6 h-6 sm:w-8 sm:h-8 text-red-500"
                               fill="currentColor"
                               viewBox="0 0 20 20"
                             >
@@ -702,7 +705,7 @@ const Messages = ({
                             </svg>
                           ) : (
                             <svg
-                              className="w-8 h-8 text-blue-500"
+                              className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500"
                               fill="none"
                               stroke="currentColor"
                               viewBox="0 0 24 24"
