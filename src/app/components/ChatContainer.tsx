@@ -25,6 +25,25 @@ export interface Message {
   reactions?: string[];
   status?: "sent" | "delivered" | "read";
   readBy?: string[];
+  files?: FileData[];
+  hasFiles?: boolean;
+  audio?: AudioData;
+  hasAudio?: boolean;
+}
+
+export interface FileData {
+  name: string;
+  type: string;
+  size: number;
+  url: string;
+}
+
+export interface AudioData {
+  name: string;
+  type: string;
+  size: number;
+  url: string;
+  duration: number;
 }
 
 export interface TypingUser {
@@ -36,9 +55,18 @@ export interface TypingUser {
 const ChatContainer = ({
   user,
   isDarkMode,
+  pinnedMessages = [],
 }: {
   user: User;
   isDarkMode: boolean;
+  pinnedMessages?: Array<{
+    id: string;
+    message: string;
+    userEmail: string;
+    userName: string;
+    userPicture: string;
+    date: any;
+  }>;
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
@@ -51,10 +79,63 @@ const ChatContainer = ({
         id: doc.id,
         ...doc.data(),
       })) as Message[];
+
+      // Check for new messages and show notifications
+      if (messages.length > 0 && msgs.length > messages.length) {
+        const newMessages = msgs.slice(messages.length);
+        const otherUserMessages = newMessages.filter(
+          (msg) => msg.userEmail !== user.email
+        );
+
+        if (otherUserMessages.length > 0) {
+          const latestMessage = otherUserMessages[otherUserMessages.length - 1];
+
+          // Play notification sound
+          if ("AudioContext" in window || "webkitAudioContext" in window) {
+            const audioContext = new (window.AudioContext ||
+              (window as any).webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+            oscillator.type = "sine";
+
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(
+              0.01,
+              audioContext.currentTime + 0.3
+            );
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.3);
+          }
+
+          // Show desktop notification
+          if (
+            "Notification" in window &&
+            Notification.permission === "granted"
+          ) {
+            const messagePreview =
+              latestMessage.message.length > 50
+                ? latestMessage.message.substring(0, 50) + "..."
+                : latestMessage.message;
+
+            new Notification(`${latestMessage.userName} sent a message`, {
+              body: messagePreview,
+              icon: latestMessage.userPicture || "/favicon.ico",
+              badge: "/favicon.ico",
+            });
+          }
+        }
+      }
+
       setMessages(msgs);
     });
     return () => unsubscribe();
-  }, []);
+  }, [messages.length, user.email]);
 
   // Listen for typing users
   useEffect(() => {
@@ -168,6 +249,7 @@ const ChatContainer = ({
             message={message}
             currentUser={user}
             isDarkMode={isDarkMode}
+            pinnedMessages={pinnedMessages}
           />
         ))
       )}

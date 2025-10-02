@@ -46,6 +46,15 @@ body {
   background: #d1d5db;
 }
 
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
 /* Focus styles */
 input:focus,
 textarea:focus,

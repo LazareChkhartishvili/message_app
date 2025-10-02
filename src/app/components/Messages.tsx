@@ -15,15 +15,25 @@ const Messages = ({
   message,
   currentUser,
   isDarkMode,
+  pinnedMessages = [],
 }: {
   message: Message;
   currentUser: User;
   isDarkMode: boolean;
+  pinnedMessages?: Array<{
+    id: string;
+    message: string;
+    userEmail: string;
+    userName: string;
+    userPicture: string;
+    date: any;
+  }>;
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.message);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
+  const [isPinning, setIsPinning] = useState(false);
   const reactionMenuRef = useRef<HTMLDivElement>(null);
 
   // Check if current user is the author of this message
@@ -158,6 +168,38 @@ const Messages = ({
     }
   };
 
+  const handlePin = async () => {
+    setIsPinning(true);
+    try {
+      await updateDoc(doc(db, "messages", message.id), {
+        pinned: true,
+        pinnedAt: new Date(),
+        pinnedBy: currentUser.email,
+      });
+    } catch (error) {
+      console.error("Error pinning message:", error);
+    } finally {
+      setIsPinning(false);
+    }
+  };
+
+  const handleUnpin = async () => {
+    setIsPinning(true);
+    try {
+      await updateDoc(doc(db, "messages", message.id), {
+        pinned: false,
+        pinnedAt: null,
+        pinnedBy: null,
+      });
+    } catch (error) {
+      console.error("Error unpinning message:", error);
+    } finally {
+      setIsPinning(false);
+    }
+  };
+
+  const isPinned = pinnedMessages.some((pinned) => pinned.id === message.id);
+
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this message?")) return;
 
@@ -225,6 +267,37 @@ const Messages = ({
     return message.reactions
       .filter((reaction: string) => reaction.endsWith(`:${currentUser.email}`))
       .map((reaction: string) => reaction.split(":")[0]);
+  };
+
+  const formatMessage = (text: string) => {
+    // Bold text **text**
+    let formatted = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+    // Italic text *text*
+    formatted = formatted.replace(/\*(.*?)\*/g, "<em>$1</em>");
+
+    // Underline text __text__
+    formatted = formatted.replace(/__(.*?)__/g, "<u>$1</u>");
+
+    // Code blocks ```code```
+    formatted = formatted.replace(
+      /```(.*?)```/gs,
+      '<pre class="bg-gray-800 text-green-400 p-2 rounded text-sm overflow-x-auto my-2"><code>$1</code></pre>'
+    );
+
+    // Inline code `code`
+    formatted = formatted.replace(
+      /`(.*?)`/g,
+      '<code class="bg-gray-800 text-green-400 px-1 py-0.5 rounded text-sm">$1</code>'
+    );
+
+    // Auto-detect links
+    formatted = formatted.replace(
+      /(https?:\/\/[^\s]+)/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:text-blue-600 underline">$1</a>'
+    );
+
+    return formatted;
   };
 
   const getReadReceipts = () => {
@@ -355,6 +428,50 @@ const Messages = ({
                 </svg>
               </button>
               <button
+                onClick={isPinned ? handleUnpin : handlePin}
+                disabled={isPinning}
+                className={`p-1 rounded transition-colors duration-200 disabled:opacity-50 ${
+                  isPinned
+                    ? isDarkMode
+                      ? "text-yellow-500 hover:text-yellow-400 hover:bg-gray-700"
+                      : "text-yellow-600 hover:text-yellow-700 hover:bg-gray-100"
+                    : isDarkMode
+                    ? "text-gray-500 hover:text-gray-400 hover:bg-gray-700"
+                    : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                }`}
+                title={isPinned ? "Unpin message" : "Pin message"}
+              >
+                {isPinning ? (
+                  <svg
+                    className="w-3 h-3 animate-spin"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    className="w-3 h-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                    />
+                  </svg>
+                )}
+              </button>
+              <button
                 onClick={handleDelete}
                 disabled={isDeleting}
                 className={`p-1 rounded transition-colors duration-200 disabled:opacity-50 ${
@@ -450,18 +567,187 @@ const Messages = ({
             </div>
           </div>
         ) : (
-          <div
-            className={`rounded-lg px-3 py-2 transition-colors duration-300 ${
-              isDarkMode ? "bg-gray-700" : "bg-gray-50"
-            }`}
-          >
-            <p
-              className={`text-sm leading-relaxed break-words transition-colors duration-300 ${
-                isDarkMode ? "text-white" : "text-gray-800"
-              }`}
-            >
-              {message.message}
-            </p>
+          <div className="space-y-2">
+            {message.message && (
+              <div
+                className={`rounded-lg px-3 py-2 transition-colors duration-300 ${
+                  isDarkMode ? "bg-gray-700" : "bg-gray-50"
+                }`}
+              >
+                <div
+                  className={`text-sm leading-relaxed break-words transition-colors duration-300 ${
+                    isDarkMode ? "text-white" : "text-gray-800"
+                  }`}
+                  dangerouslySetInnerHTML={{
+                    __html: formatMessage(message.message),
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Audio Message */}
+            {message.hasAudio && message.audio && (
+              <div
+                className={`border rounded-lg overflow-hidden transition-colors duration-300 ${
+                  isDarkMode
+                    ? "border-gray-600 bg-gray-700"
+                    : "border-gray-200 bg-gray-50"
+                }`}
+              >
+                <div className="p-3 flex items-center space-x-3">
+                  <div className="flex-shrink-0">
+                    <svg
+                      className="w-8 h-8 text-red-500"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`text-sm font-medium transition-colors duration-300 ${
+                        isDarkMode ? "text-white" : "text-gray-900"
+                      }`}
+                    >
+                      Voice Message
+                    </p>
+                    <p
+                      className={`text-xs transition-colors duration-300 ${
+                        isDarkMode ? "text-gray-400" : "text-gray-500"
+                      }`}
+                    >
+                      {Math.floor(message.audio.duration / 60)}:
+                      {(message.audio.duration % 60)
+                        .toString()
+                        .padStart(2, "0")}
+                    </p>
+                  </div>
+                  <audio controls className="flex-1">
+                    <source
+                      src={message.audio.url}
+                      type={message.audio.type || "audio/webm"}
+                    />
+                    Your browser does not support the audio element.
+                  </audio>
+                </div>
+              </div>
+            )}
+
+            {/* File Attachments */}
+            {message.hasFiles && message.files && (
+              <div className="space-y-2">
+                {message.files.map((file, index) => (
+                  <div
+                    key={index}
+                    className={`border rounded-lg overflow-hidden transition-colors duration-300 ${
+                      isDarkMode
+                        ? "border-gray-600 bg-gray-700"
+                        : "border-gray-200 bg-gray-50"
+                    }`}
+                  >
+                    {file.type.startsWith("image/") ? (
+                      <div className="relative">
+                        <img
+                          src={file.url}
+                          alt={file.name}
+                          className="max-w-xs max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity duration-200 rounded-lg"
+                          onClick={() => {
+                            // For base64 URLs, create a new window with the image
+                            if (file.url.startsWith("data:")) {
+                              const newWindow = window.open("", "_blank");
+                              if (newWindow) {
+                                newWindow.document.write(`
+                                  <html>
+                                    <head><title>${file.name}</title></head>
+                                    <body style="margin:0; padding:20px; background:#f5f5f5; text-align:center;">
+                                      <img src="${file.url}" style="max-width:100%; max-height:90vh; object-fit:contain; border-radius:8px; box-shadow:0 4px 6px rgba(0,0,0,0.1);" />
+                                      <p style="margin-top:10px; color:#666;">${file.name}</p>
+                                    </body>
+                                  </html>
+                                `);
+                              }
+                            } else {
+                              window.open(file.url, "_blank");
+                            }
+                          }}
+                        />
+                        <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-2">
+                          <div className="flex justify-between items-center">
+                            <span className="truncate">{file.name}</span>
+                            <span>
+                              {(file.size / 1024 / 1024).toFixed(1)} MB
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 flex items-center space-x-3">
+                        <div className="flex-shrink-0">
+                          {file.type === "application/pdf" ? (
+                            <svg
+                              className="w-8 h-8 text-red-500"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          ) : (
+                            <svg
+                              className="w-8 h-8 text-blue-500"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className={`text-sm font-medium truncate transition-colors duration-300 ${
+                              isDarkMode ? "text-white" : "text-gray-900"
+                            }`}
+                          >
+                            {file.name}
+                          </p>
+                          <p
+                            className={`text-xs transition-colors duration-300 ${
+                              isDarkMode ? "text-gray-400" : "text-gray-500"
+                            }`}
+                          >
+                            {(file.size / 1024 / 1024).toFixed(1)} MB
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => window.open(file.url, "_blank")}
+                          className={`px-3 py-1 rounded text-xs font-medium transition-colors duration-200 ${
+                            isDarkMode
+                              ? "bg-blue-600 text-white hover:bg-blue-700"
+                              : "bg-blue-500 text-white hover:bg-blue-600"
+                          }`}
+                        >
+                          Open
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
