@@ -1,14 +1,26 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import ChatContainer from "./ChatContainer";
 import { signOut, User } from "firebase/auth";
 import { auth, db } from "../../../firebase";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  serverTimestamp,
+  doc,
+  setDoc,
+  deleteDoc,
+} from "firebase/firestore";
 
 const ChatApp = ({ user }: { user: User }) => {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [imagePreview, setImagePreview] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const focusInput = () => {
     inputRef.current?.focus();
@@ -35,6 +47,51 @@ const ChatApp = ({ user }: { user: User }) => {
     setIsDarkMode(!isDarkMode);
   };
 
+  const handleTypingStop = useCallback(async () => {
+    if (isTyping) {
+      setIsTyping(false);
+      try {
+        await deleteDoc(doc(db, "typing", user.email!));
+      } catch (error) {
+        console.error("Error stopping typing indicator:", error);
+      }
+    }
+  }, [isTyping, user.email]);
+
+  // Cleanup typing indicator on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      // Stop typing when component unmounts
+      if (isTyping) {
+        handleTypingStop();
+      }
+    };
+  }, [isTyping, handleTypingStop]);
+
+  const handleTypingStart = async () => {
+    if (!isTyping) {
+      setIsTyping(true);
+      await setDoc(doc(db, "typing", user.email!), {
+        userEmail: user.email,
+        userName: user.displayName || user.email,
+        timestamp: serverTimestamp(),
+      });
+    }
+
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Set new timeout to stop typing after 2 seconds of inactivity
+    typingTimeoutRef.current = setTimeout(async () => {
+      await handleTypingStop();
+    }, 2000);
+  };
+
   const handleLogout = async () => {
     await signOut(auth);
   };
@@ -47,13 +104,18 @@ const ChatApp = ({ user }: { user: User }) => {
 
     try {
       setLoading(true);
+      await handleTypingStop(); // Stop typing when sending message
+
       await addDoc(collection(db, "messages"), {
         message: input.trim(),
         userEmail: user.email,
         userPicture: user.photoURL,
         userName: user.displayName,
         date: serverTimestamp(),
+        status: "sent",
+        readBy: [user.email],
       });
+
       setInput("");
     } catch (error) {
       console.error(error);
@@ -179,8 +241,12 @@ const ChatApp = ({ user }: { user: User }) => {
                 <input
                   ref={inputRef}
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => {
+                    setInput(e.target.value);
+                    handleTypingStart();
+                  }}
                   onKeyPress={handleKeyPress}
+                  onBlur={handleTypingStop}
                   type="text"
                   placeholder="Type a message..."
                   className={`w-full border rounded-md px-4 py-2 placeholder-gray-500 focus:outline-none focus:ring-1 transition-colors duration-200 ${

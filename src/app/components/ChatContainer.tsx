@@ -4,6 +4,10 @@ import {
   orderBy,
   query,
   Timestamp,
+  where,
+  doc,
+  updateDoc,
+  arrayUnion,
 } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import { db } from "../../../firebase";
@@ -19,6 +23,14 @@ export interface Message {
   date: Timestamp;
   edited?: boolean;
   reactions?: string[];
+  status?: "sent" | "delivered" | "read";
+  readBy?: string[];
+}
+
+export interface TypingUser {
+  userEmail: string;
+  userName: string;
+  timestamp: Timestamp;
 }
 
 const ChatContainer = ({
@@ -29,6 +41,7 @@ const ChatContainer = ({
   isDarkMode: boolean;
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const bottomDivRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,9 +56,66 @@ const ChatContainer = ({
     return () => unsubscribe();
   }, []);
 
+  // Listen for typing users
+  useEffect(() => {
+    const q = query(
+      collection(db, "typing"),
+      where("userEmail", "!=", user.email)
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const now = new Date();
+      const typingUsersList = snapshot.docs
+        .map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+        .filter((typingUser: any) => {
+          // Filter out typing users older than 3 seconds
+          const typingTime = typingUser.timestamp?.toDate();
+          if (!typingTime) return false;
+          const timeDiff = now.getTime() - typingTime.getTime();
+          return timeDiff < 3000;
+        })
+        .map((typingUser: any) => ({
+          userEmail: typingUser.userEmail,
+          userName: typingUser.userName,
+          timestamp: typingUser.timestamp,
+        })) as TypingUser[];
+
+      setTypingUsers(typingUsersList);
+    });
+    return () => unsubscribe();
+  }, [user.email]);
+
   useEffect(() => {
     bottomDivRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Mark messages as read when user views them
+  useEffect(() => {
+    const markMessagesAsRead = async () => {
+      const unreadMessages = messages.filter(
+        (msg) =>
+          msg.userEmail !== user.email &&
+          (!msg.readBy || !msg.readBy.includes(user.email!))
+      );
+
+      for (const message of unreadMessages) {
+        try {
+          await updateDoc(doc(db, "messages", message.id), {
+            readBy: arrayUnion(user.email!),
+            status: "read",
+          });
+        } catch (error) {
+          console.error("Error marking message as read:", error);
+        }
+      }
+    };
+
+    if (messages.length > 0) {
+      markMessagesAsRead();
+    }
+  }, [messages, user.email]);
 
   return (
     <div className="h-full overflow-y-auto p-4 space-y-3">
@@ -101,6 +171,55 @@ const ChatContainer = ({
           />
         ))
       )}
+
+      {/* Typing Indicator */}
+      {typingUsers.length > 0 && (
+        <div className="flex items-center space-x-2 p-4">
+          <div className="flex -space-x-2">
+            {typingUsers.slice(0, 3).map((typingUser, index) => (
+              <div
+                key={typingUser.userEmail}
+                className="w-6 h-6 rounded-full bg-gray-300 border-2 border-white flex items-center justify-center text-xs font-medium"
+                title={typingUser.userName}
+              >
+                {typingUser.userName.charAt(0).toUpperCase()}
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center space-x-1">
+            <span
+              className={`text-sm transition-colors duration-300 ${
+                isDarkMode ? "text-gray-400" : "text-gray-600"
+              }`}
+            >
+              {typingUsers.length === 1
+                ? `${typingUsers[0].userName} is typing`
+                : `${typingUsers.length} people are typing`}
+            </span>
+            <div className="flex space-x-1">
+              <div
+                className={`w-1 h-1 rounded-full animate-bounce ${
+                  isDarkMode ? "bg-gray-400" : "bg-gray-500"
+                }`}
+                style={{ animationDelay: "0ms" }}
+              ></div>
+              <div
+                className={`w-1 h-1 rounded-full animate-bounce ${
+                  isDarkMode ? "bg-gray-400" : "bg-gray-500"
+                }`}
+                style={{ animationDelay: "150ms" }}
+              ></div>
+              <div
+                className={`w-1 h-1 rounded-full animate-bounce ${
+                  isDarkMode ? "bg-gray-400" : "bg-gray-500"
+                }`}
+                style={{ animationDelay: "300ms" }}
+              ></div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div ref={bottomDivRef}></div>
     </div>
   );
